@@ -286,6 +286,73 @@ const App: React.FC = () => {
     message.info('对话历史已清空');
   };
 
+  // Markdown组件样式配置（修复CSS嵌套问题）
+  const markdownComponents = {
+    h1: ({ children }: { children: React.ReactNode }) => (
+      <h1 style={{ marginTop: '16px', marginBottom: '8px', fontWeight: 600, fontSize: '24px' }}>
+        {children}
+      </h1>
+    ),
+    h2: ({ children }: { children: React.ReactNode }) => (
+      <h2 style={{ marginTop: '16px', marginBottom: '8px', fontWeight: 600, fontSize: '20px' }}>
+        {children}
+      </h2>
+    ),
+    h3: ({ children }: { children: React.ReactNode }) => (
+      <h3 style={{ marginTop: '16px', marginBottom: '8px', fontWeight: 600, fontSize: '18px' }}>
+        {children}
+      </h3>
+    ),
+    h4: ({ children }: { children: React.ReactNode }) => (
+      <h4 style={{ marginTop: '16px', marginBottom: '8px', fontWeight: 600, fontSize: '16px' }}>
+        {children}
+      </h4>
+    ),
+    p: ({ children }: { children: React.ReactNode }) => (
+      <p style={{ marginBottom: '8px', lineHeight: '1.7' }}>{children}</p>
+    ),
+    ul: ({ children }: { children: React.ReactNode }) => (
+      <ul style={{ marginBottom: '8px', paddingLeft: '20px' }}>{children}</ul>
+    ),
+    ol: ({ children }: { children: React.ReactNode }) => (
+      <ol style={{ marginBottom: '8px', paddingLeft: '20px' }}>{children}</ol>
+    ),
+    li: ({ children }: { children: React.ReactNode }) => (
+      <li style={{ marginBottom: '4px' }}>{children}</li>
+    ),
+    code: ({ className, children }: { className?: string; children: React.ReactNode }) => {
+      const isBlock = className?.includes('language-');
+      if (isBlock) {
+        return (
+          <pre style={{ 
+            background: isDarkMode ? '#0d1117' : '#f6f8fa',
+            padding: '12px',
+            borderRadius: '6px',
+            overflowX: 'auto',
+            border: isDarkMode ? '1px solid #30363d' : '1px solid #e8e8e8',
+            marginBottom: '8px'
+          }}>
+            <code style={{ fontFamily: 'Consolas, Monaco, monospace', fontSize: '13px' }}>
+              {children}
+            </code>
+          </pre>
+        );
+      }
+      return (
+        <code style={{ 
+          background: isDarkMode ? '#21262d' : '#f6f8fa',
+          padding: '2px 6px',
+          borderRadius: '4px',
+          fontSize: '13px',
+          fontFamily: 'Consolas, Monaco, monospace'
+        }}>
+          {children}
+        </code>
+      );
+    },
+    pre: ({ children }: { children: React.ReactNode }) => <>{children}</>
+  };
+
   // 企业级主题配置
   const themeConfig = {
     algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
@@ -439,7 +506,7 @@ const App: React.FC = () => {
                       <div>
                         <Text strong style={{ fontSize: '14px' }}>{uploadedFile.name}</Text>
                         <div>
-                          <Tag color="blue" size="small" style={{ marginTop: '4px' }}>
+                          <Tag color="blue" style={{ marginTop: '4px', fontSize: '12px' }}>
                             {formatFileSize(uploadedFile.size)}
                           </Tag>
                         </div>
@@ -635,7 +702,7 @@ const App: React.FC = () => {
                             {msg.role === 'user' ? '输入数据' : '分析结果'}
                           </Text>
                           {msg.fileName && (
-                            <Tag color="blue" size="small" style={{ marginLeft: '12px' }}>
+                            <Tag color="blue" style={{ marginLeft: '12px', fontSize: '12px' }}>
                               附件: {msg.fileName}
                             </Tag>
                           )}
@@ -648,44 +715,16 @@ const App: React.FC = () => {
                       {/* 消息内容 */}
                       <div style={{ 
                         padding: '16px',
-                        lineHeight: '1.7'
+                        lineHeight: '1.7',
+                        color: isDarkMode ? '#f0f6fc' : '#1f2329'
                       }}>
                         {msg.role === 'assistant' ? (
-                          <div style={{ 
-                            color: isDarkMode ? '#f0f6fc' : '#1f2329',
-                            '& h1, & h2, & h3, & h4, & h5, & h6': {
-                              marginTop: '16px',
-                              marginBottom: '8px',
-                              fontWeight: 600
-                            },
-                            '& p': {
-                              marginBottom: '8px'
-                            },
-                            '& ul, & ol': {
-                              marginBottom: '8px',
-                              paddingLeft: '20px'
-                            },
-                            '& li': {
-                              marginBottom: '4px'
-                            },
-                            '& code': {
-                              background: isDarkMode ? '#21262d' : '#f6f8fa',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              fontSize: '13px'
-                            },
-                            '& pre': {
-                              background: isDarkMode ? '#0d1117' : '#f6f8fa',
-                              padding: '12px',
-                              borderRadius: '6px',
-                              overflowX: 'auto',
-                              border: isDarkMode ? '1px solid #30363d' : '1px solid #e8e8e8'
-                            }
-                          }}>
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {msg.content}
-                            </ReactMarkdown>
-                          </div>
+                          <ReactMarkdown 
+                            remarkPlugins={[remarkGfm]}
+                            components={markdownComponents}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
                         ) : (
                           <pre style={{ 
                             whiteSpace: 'pre-wrap', 
