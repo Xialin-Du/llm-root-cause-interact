@@ -33,7 +33,7 @@ const { Header, Content, Footer } = Layout;
 const { TextArea } = Input;
 const { Title, Paragraph, Text } = Typography;
 
-// 后端API配置
+// 后端API配置 - 部署后修改为你的Render后端地址
 const API_BASE_URL = 'http://localhost:8000/api';
 
 // 消息类型定义
@@ -284,73 +284,6 @@ const App: React.FC = () => {
   const handleClearHistory = () => {
     setMessages([]);
     message.info('对话历史已清空');
-  };
-
-  // Markdown组件样式配置（修复CSS嵌套问题）
-  const markdownComponents = {
-    h1: ({ children }: { children: React.ReactNode }) => (
-      <h1 style={{ marginTop: '16px', marginBottom: '8px', fontWeight: 600, fontSize: '24px' }}>
-        {children}
-      </h1>
-    ),
-    h2: ({ children }: { children: React.ReactNode }) => (
-      <h2 style={{ marginTop: '16px', marginBottom: '8px', fontWeight: 600, fontSize: '20px' }}>
-        {children}
-      </h2>
-    ),
-    h3: ({ children }: { children: React.ReactNode }) => (
-      <h3 style={{ marginTop: '16px', marginBottom: '8px', fontWeight: 600, fontSize: '18px' }}>
-        {children}
-      </h3>
-    ),
-    h4: ({ children }: { children: React.ReactNode }) => (
-      <h4 style={{ marginTop: '16px', marginBottom: '8px', fontWeight: 600, fontSize: '16px' }}>
-        {children}
-      </h4>
-    ),
-    p: ({ children }: { children: React.ReactNode }) => (
-      <p style={{ marginBottom: '8px', lineHeight: '1.7' }}>{children}</p>
-    ),
-    ul: ({ children }: { children: React.ReactNode }) => (
-      <ul style={{ marginBottom: '8px', paddingLeft: '20px' }}>{children}</ul>
-    ),
-    ol: ({ children }: { children: React.ReactNode }) => (
-      <ol style={{ marginBottom: '8px', paddingLeft: '20px' }}>{children}</ol>
-    ),
-    li: ({ children }: { children: React.ReactNode }) => (
-      <li style={{ marginBottom: '4px' }}>{children}</li>
-    ),
-    code: ({ className, children }: { className?: string; children: React.ReactNode }) => {
-      const isBlock = className?.includes('language-');
-      if (isBlock) {
-        return (
-          <pre style={{ 
-            background: isDarkMode ? '#0d1117' : '#f6f8fa',
-            padding: '12px',
-            borderRadius: '6px',
-            overflowX: 'auto',
-            border: isDarkMode ? '1px solid #30363d' : '1px solid #e8e8e8',
-            marginBottom: '8px'
-          }}>
-            <code style={{ fontFamily: 'Consolas, Monaco, monospace', fontSize: '13px' }}>
-              {children}
-            </code>
-          </pre>
-        );
-      }
-      return (
-        <code style={{ 
-          background: isDarkMode ? '#21262d' : '#f6f8fa',
-          padding: '2px 6px',
-          borderRadius: '4px',
-          fontSize: '13px',
-          fontFamily: 'Consolas, Monaco, monospace'
-        }}>
-          {children}
-        </code>
-      );
-    },
-    pre: ({ children }: { children: React.ReactNode }) => <>{children}</>
   };
 
   // 企业级主题配置
@@ -721,7 +654,6 @@ const App: React.FC = () => {
                         {msg.role === 'assistant' ? (
                           <ReactMarkdown 
                             remarkPlugins={[remarkGfm]}
-                            components={markdownComponents}
                           >
                             {msg.content}
                           </ReactMarkdown>
