@@ -26,8 +26,6 @@ import {
   MoonOutlined,
   CloudServerOutlined
 } from '@ant-design/icons';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 const { Header, Content, Footer } = Layout;
 const { TextArea } = Input;
@@ -43,7 +41,7 @@ interface Message {
   content: string;
   timestamp: Date;
   fileName?: string;
-  taskId?: string; // 新增：任务ID，用于下载结果文件
+  taskId?: string; // 任务ID，用于下载结果文件
 }
 
 // 上传文件类型定义
@@ -225,7 +223,7 @@ const App: React.FC = () => {
         
         const chunk = decoder.decode(value);
         
-        // 识别任务完成标记，提取任务ID，不显示标记文本
+        // 识别任务完成标记，提取任务ID
         if (chunk.includes('__TASK_DONE__:')) {
           const [contentPart, taskPart] = chunk.split('__TASK_DONE__:');
           
@@ -641,9 +639,22 @@ const App: React.FC = () => {
                       }}>
                         {msg.role === 'assistant' ? (
                           <div>
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {/* ✅ 关键修复：使用pre标签预格式化，完美保留所有换行、空格和缩进 */}
+                            <pre style={{
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-all',
+                              margin: 0,
+                              fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
+                              fontSize: '13px',
+                              lineHeight: '1.7',
+                              color: isDarkMode ? '#c9d1d9' : '#24292f',
+                              background: isDarkMode ? '#0d1117' : '#f6f8fa',
+                              padding: '12px',
+                              borderRadius: '6px',
+                              border: isDarkMode ? '1px solid #30363d' : '1px solid #e8e8e8'
+                            }}>
                               {msg.content}
-                            </ReactMarkdown>
+                            </pre>
 
                             {/* 任务完成后显示下载按钮 */}
                             {msg.taskId && (
