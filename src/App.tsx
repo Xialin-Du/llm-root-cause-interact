@@ -33,7 +33,7 @@ const { Header, Content, Footer } = Layout;
 const { TextArea } = Input;
 const { Title, Paragraph, Text } = Typography;
 
-// 后端API配置 - 部署后修改为你的Render后端地址
+// 后端API配置
 const API_BASE_URL = 'http://localhost:8000/api';
 
 // 消息类型定义
@@ -43,6 +43,7 @@ interface Message {
   content: string;
   timestamp: Date;
   fileName?: string;
+  taskId?: string; // 新增：任务ID，用于下载结果文件
 }
 
 // 上传文件类型定义
@@ -54,7 +55,6 @@ interface UploadedFile {
 }
 
 const App: React.FC = () => {
-  // 状态管理
   const [inputText, setInputText] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -62,20 +62,16 @@ const App: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    // 默认深色模式（运维系统最佳实践）
     return localStorage.getItem('theme') !== 'light';
   });
   
-  // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 保存主题设置到本地存储
   useEffect(() => {
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
-  // 自动滚动到底部
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -84,34 +80,29 @@ const App: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // 文件大小格式化
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   };
 
-  // 点击上传按钮触发原生文件选择
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
 
-  // 文件处理函数
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     
     const file = files[0];
-    const maxSize = 100 * 1024 * 1024; // 100MB限制
+    const maxSize = 100 * 1024 * 1024;
 
-    // 检查文件大小
     if (file.size > maxSize) {
       message.error(`文件大小不能超过100MB，当前文件大小: ${formatFileSize(file.size)}`);
       e.target.value = '';
       return;
     }
 
-    // 检查文件类型
     const allowedExtensions = ['.txt', '.log', '.csv', '.json', '.md'];
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
     
@@ -126,7 +117,6 @@ const App: React.FC = () => {
 
     const reader = new FileReader();
     
-    // 真实的文件读取进度
     reader.onprogress = (event) => {
       if (event.lengthComputable) {
         const percent = Math.round((event.loaded / event.total) * 100);
@@ -158,7 +148,6 @@ const App: React.FC = () => {
     reader.readAsText(file);
   };
 
-  // 文件下载功能
   const handleDownloadFile = () => {
     if (!uploadedFile) return;
 
@@ -176,18 +165,15 @@ const App: React.FC = () => {
     message.success(`文件 "${uploadedFile.name}" 下载成功`);
   };
 
-  // 删除上传的文件
   const handleDeleteFile = () => {
     setUploadedFile(null);
     setUploadProgress(0);
     message.info('文件已删除');
   };
 
-  // 发送请求到后端LLM API
   const sendToLLM = async (prompt: string, fileName?: string) => {
     setIsLoading(true);
     
-    // 添加用户消息
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -201,7 +187,6 @@ const App: React.FC = () => {
     setUploadedFile(null);
     setUploadProgress(0);
     
-    // 添加空的助手消息，用于流式填充
     const assistantMessageId = (Date.now() + 1).toString();
     setMessages(prev => [...prev, {
       id: assistantMessageId,
@@ -220,7 +205,7 @@ const App: React.FC = () => {
           prompt: prompt,
           stream: true
         }),
-        signal: AbortSignal.timeout(900000) // 5分钟超时
+        signal: AbortSignal.timeout(900000) // 15分钟超时
       });
 
       if (!response.ok) {
@@ -240,18 +225,36 @@ const App: React.FC = () => {
         
         const chunk = decoder.decode(value);
         
-        // 流式更新助手消息
-        setMessages(prev => prev.map(msg => 
-          msg.id === assistantMessageId 
-            ? { ...msg, content: msg.content + chunk }
-            : msg
-        ));
+        // 识别任务完成标记，提取任务ID，不显示标记文本
+        if (chunk.includes('__TASK_DONE__:')) {
+          const [contentPart, taskPart] = chunk.split('__TASK_DONE__:');
+          
+          if (contentPart) {
+            setMessages(prev => prev.map(msg => 
+              msg.id === assistantMessageId 
+                ? { ...msg, content: msg.content + contentPart }
+                : msg
+            ));
+          }
+          
+          const taskId = taskPart.trim();
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantMessageId 
+              ? { ...msg, taskId }
+              : msg
+          ));
+        } else {
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantMessageId 
+              ? { ...msg, content: msg.content + chunk }
+              : msg
+          ));
+        }
       }
     } catch (error) {
-      console.error('LLM API调用失败:', error);
-      message.error('调用大模型API失败，请检查后端服务是否正常运行');
+      console.error('API调用失败:', error);
+      message.error('调用分析服务失败，请检查后端服务是否正常运行');
       
-      // 更新错误消息
       setMessages(prev => prev.map(msg => 
         msg.id === assistantMessageId 
           ? { ...msg, content: '**错误：** 无法连接到后端服务，请检查网络连接或后端服务状态。' }
@@ -262,7 +265,6 @@ const App: React.FC = () => {
     }
   };
 
-  // 提交按钮处理
   const handleSubmit = () => {
     if (!inputText.trim() && !uploadedFile) {
       message.warning('请输入文本或上传文件');
@@ -280,13 +282,11 @@ const App: React.FC = () => {
     sendToLLM(fullPrompt, fileName);
   };
 
-  // 清空历史
   const handleClearHistory = () => {
     setMessages([]);
     message.info('对话历史已清空');
   };
 
-  // 企业级主题配置
   const themeConfig = {
     algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
     token: {
@@ -316,7 +316,6 @@ const App: React.FC = () => {
   return (
     <ConfigProvider theme={themeConfig}>
       <Layout style={{ minHeight: '100vh', background: isDarkMode ? '#0f1419' : '#f5f7fa' }}>
-        {/* 顶部导航栏 - 企业级设计 */}
         <Header style={{ 
           background: isDarkMode ? '#161b22' : '#ffffff',
           padding: '0 32px',
@@ -357,7 +356,6 @@ const App: React.FC = () => {
             gap: '24px',
             height: 'calc(100vh - 136px)'
           }}>
-            {/* 左侧：输入区域 */}
             <Card 
               title="数据输入" 
               bordered={false}
@@ -372,7 +370,6 @@ const App: React.FC = () => {
               }}
               extra={
                 <Space>
-                  {/* 隐藏的原生文件输入 */}
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -381,7 +378,6 @@ const App: React.FC = () => {
                     style={{ display: 'none' }}
                   />
                   
-                  {/* 自定义上传按钮 */}
                   <Button 
                     type="primary"
                     ghost
@@ -408,7 +404,6 @@ const App: React.FC = () => {
               }
             >
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {/* 上传进度条 */}
                 {isUploading && (
                   <Progress 
                     percent={uploadProgress} 
@@ -418,7 +413,6 @@ const App: React.FC = () => {
                   />
                 )}
 
-                {/* 已上传文件信息 - 美化版 */}
                 {uploadedFile && (
                   <div style={{ 
                     padding: '14px 16px', 
@@ -496,7 +490,7 @@ const App: React.FC = () => {
                               marginBottom: '12px' 
                             }}>
                               <Text type="warning" style={{ fontSize: '13px' }}>
-                                ⚠️ 文件较大（{formatFileSize(uploadedFile.size)}），仅预览前5000行，完整内容将全部发送给大模型
+                                ⚠️ 文件较大（{formatFileSize(uploadedFile.size)}），仅预览前5000行，完整内容将全部发送给分析脚本
                               </Text>
                             </div>
                           )}
@@ -540,12 +534,11 @@ const App: React.FC = () => {
                   style={{ marginTop: 'auto', height: '44px', fontSize: '15px', fontWeight: 500 }}
                   block
                 >
-                  {isLoading ? '正在分析中，请稍候...' : '开始根因分析'}
+                  {isLoading ? '分析任务运行中...' : '开始根因分析'}
                 </Button>
               </div>
             </Card>
             
-            {/* 右侧：输出区域 */}
             <Card 
               title="分析结果" 
               bordered={false}
@@ -611,7 +604,6 @@ const App: React.FC = () => {
                         overflow: 'hidden'
                       }}
                     >
-                      {/* 消息头部 */}
                       <div style={{ 
                         padding: '12px 16px',
                         background: msg.role === 'user'
@@ -625,10 +617,7 @@ const App: React.FC = () => {
                         alignItems: 'center'
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <span style={{ 
-                            fontSize: '16px', 
-                            marginRight: '8px'
-                          }}>
+                          <span style={{ fontSize: '16px', marginRight: '8px' }}>
                             {msg.role === 'user' ? '👤' : '🤖'}
                           </span>
                           <Text strong style={{ fontSize: '14px' }}>
@@ -645,18 +634,50 @@ const App: React.FC = () => {
                         </Text>
                       </div>
                       
-                      {/* 消息内容 */}
                       <div style={{ 
                         padding: '16px',
                         lineHeight: '1.7',
                         color: isDarkMode ? '#f0f6fc' : '#1f2329'
                       }}>
                         {msg.role === 'assistant' ? (
-                          <ReactMarkdown 
-                            remarkPlugins={[remarkGfm]}
-                          >
-                            {msg.content}
-                          </ReactMarkdown>
+                          <div>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {msg.content}
+                            </ReactMarkdown>
+
+                            {/* 任务完成后显示下载按钮 */}
+                            {msg.taskId && (
+                              <div style={{ 
+                                marginTop: '16px', 
+                                paddingTop: '12px', 
+                                borderTop: isDarkMode ? '1px solid #30363d' : '1px solid #e8e8e8' 
+                              }}>
+                                <Text type="secondary" style={{ marginRight: '12px' }}>
+                                  运行结果文件：
+                                </Text>
+                                <Space>
+                                  <Button 
+                                    size="small" 
+                                    type="primary"
+                                    ghost
+                                    icon={<DownloadOutlined />}
+                                    onClick={() => window.open(`${API_BASE_URL}/download/${msg.taskId}/csv`, '_blank')}
+                                  >
+                                    下载 CSV
+                                  </Button>
+                                  <Button 
+                                    size="small" 
+                                    type="primary"
+                                    ghost
+                                    icon={<DownloadOutlined />}
+                                    onClick={() => window.open(`${API_BASE_URL}/download/${msg.taskId}/jsonl`, '_blank')}
+                                  >
+                                    下载 JSONL
+                                  </Button>
+                                </Space>
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <pre style={{ 
                             whiteSpace: 'pre-wrap', 
@@ -671,7 +692,7 @@ const App: React.FC = () => {
                             border: isDarkMode ? '1px solid #30363d' : '1px solid #e8e8e8'
                           }}>
                             {msg.content.length > 1500 
-                              ? msg.content.substring(0, 1500) + '\n\n...（内容过长已截断，完整内容已发送给大模型）' 
+                              ? msg.content.substring(0, 1500) + '\n\n...（内容过长已截断，完整内容已发送给分析脚本）' 
                               : msg.content}
                           </pre>
                         )}
@@ -691,7 +712,7 @@ const App: React.FC = () => {
                   }}>
                     <Spin size="large" />
                     <div style={{ marginTop: '12px', color: isDarkMode ? '#8b949e' : '#999' }}>
-                      大模型正在分析数据并生成报告，请稍候...
+                      分析任务运行中，预计耗时6-10分钟，请耐心等待...
                     </div>
                   </div>
                 )}
