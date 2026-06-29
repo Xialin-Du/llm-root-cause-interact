@@ -220,7 +220,7 @@ const App: React.FC = () => {
           prompt: prompt,
           stream: true
         }),
-        signal: AbortSignal.timeout(300000) // 5分钟超时
+        signal: AbortSignal.timeout(900000) // 5分钟超时
       });
 
       if (!response.ok) {
