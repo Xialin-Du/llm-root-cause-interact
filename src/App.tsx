@@ -49,7 +49,7 @@ interface UploadedFile {
   name: string;
   size: number;
   type: string;
-  content: string; // 用于预览
+  content: string; // 仅用于预览
   rawFile: File;   // 原始文件对象
 }
 
@@ -174,7 +174,7 @@ const App: React.FC = () => {
   const sendToLLM = async (displayContent: string, fileName?: string) => {
     setIsLoading(true);
     
-    // 用户消息只显示精简内容，不展示完整文件数据
+    // 用户消息仅展示提示信息，不包含文件完整内容
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -274,20 +274,18 @@ const App: React.FC = () => {
       return;
     }
     
-    // 构造用户侧显示的精简内容
+    // 构造用户侧显示的内容（仅展示文件名，不展示文件内容）
     let displayContent = '';
     if (inputText.trim()) {
-      displayContent = inputText;
+      displayContent += inputText;
     }
     if (uploadedFile) {
-      if (displayContent) {
-        displayContent += `\n\n[附件] 已上传文件：${uploadedFile.name}（${formatFileSize(uploadedFile.size)}）`;
-      } else {
-        displayContent = `[附件] 已上传文件：${uploadedFile.name}（${formatFileSize(uploadedFile.size)}）`;
-      }
+      if (displayContent) displayContent += '\n\n';
+      displayContent += `📎 已上传文件：${uploadedFile.name}（${formatFileSize(uploadedFile.size)}）`;
     }
     
-    sendToLLM(displayContent, uploadedFile?.name);
+    const fileName = uploadedFile?.name;
+    sendToLLM(displayContent, fileName);
   };
 
   const handleClearHistory = () => {
@@ -476,7 +474,7 @@ const App: React.FC = () => {
                         <TextArea
                           value={inputText}
                           onChange={(e) => setInputText(e.target.value)}
-                          placeholder="请输入需要分析的告警信息、系统日志、性能指标或问题描述（可选）..."
+                          placeholder="请输入补充说明（可选，脚本独立运行时可留空）..."
                           rows={uploadedFile ? 10 : 15}
                           style={{ marginBottom: '16px' }}
                           disabled={isLoading}
@@ -498,7 +496,7 @@ const App: React.FC = () => {
                               marginBottom: '12px' 
                             }}>
                               <Text type="warning" style={{ fontSize: '13px' }}>
-                                ⚠️ 文件较大（{formatFileSize(uploadedFile.size)}），仅预览前5000行，完整文件将发送给后端
+                                ⚠️ 文件较大（{formatFileSize(uploadedFile.size)}），仅预览前5000行
                               </Text>
                             </div>
                           )}
@@ -630,7 +628,7 @@ const App: React.FC = () => {
                           </Text>
                           {msg.fileName && (
                             <Tag color="blue" style={{ marginLeft: '12px', fontSize: '12px' }}>
-                              附件: {msg.fileName}
+                              含附件
                             </Tag>
                           )}
                         </div>
@@ -698,15 +696,15 @@ const App: React.FC = () => {
                         ) : (
                           <pre style={{ 
                             whiteSpace: 'pre-wrap', 
-                            wordBreak: 'break-all',
+                            wordBreak: 'break-word',
                             margin: 0,
-                            fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
-                            fontSize: '13px',
+                            fontFamily: 'system-ui, sans-serif',
+                            fontSize: '14px',
                             color: isDarkMode ? '#c9d1d9' : '#24292f',
-                            background: isDarkMode ? '#0d1117' : '#f6f8fa',
-                            padding: '12px',
-                            borderRadius: '6px',
-                            border: isDarkMode ? '1px solid #30363d' : '1px solid #e8e8e8'
+                            background: 'transparent',
+                            padding: '0',
+                            borderRadius: '0',
+                            border: 'none'
                           }}>
                             {msg.content}
                           </pre>
