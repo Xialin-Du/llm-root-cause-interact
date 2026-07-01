@@ -41,7 +41,7 @@ interface Message {
   content: string;
   timestamp: Date;
   fileName?: string;
-  taskId?: string; // 任务ID，用于下载结果文件
+  taskId?: string;
 }
 
 // 上传文件类型定义
@@ -223,7 +223,7 @@ const App: React.FC = () => {
         
         const chunk = decoder.decode(value);
         
-        // 识别任务完成标记，提取任务ID
+        // 识别任务完成标记
         if (chunk.includes('__TASK_DONE__:')) {
           const [contentPart, taskPart] = chunk.split('__TASK_DONE__:');
           
@@ -639,14 +639,14 @@ const App: React.FC = () => {
                       }}>
                         {msg.role === 'assistant' ? (
                           <div>
-                            {/* ✅ 关键修复：使用pre标签预格式化，完美保留所有换行、空格和缩进 */}
+                            {/* ✅ 核心修改：用pre标签渲染日志，完美保留换行 */}
                             <pre style={{
                               whiteSpace: 'pre-wrap',
-                              wordBreak: 'break-all',
+                              wordBreak: 'break-word',
                               margin: 0,
                               fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
                               fontSize: '13px',
-                              lineHeight: '1.7',
+                              lineHeight: '1.6',
                               color: isDarkMode ? '#c9d1d9' : '#24292f',
                               background: isDarkMode ? '#0d1117' : '#f6f8fa',
                               padding: '12px',
@@ -656,7 +656,7 @@ const App: React.FC = () => {
                               {msg.content}
                             </pre>
 
-                            {/* 任务完成后显示下载按钮 */}
+                            {/* 下载按钮区域 */}
                             {msg.taskId && (
                               <div style={{ 
                                 marginTop: '16px', 
