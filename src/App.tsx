@@ -49,7 +49,8 @@ interface UploadedFile {
   name: string;
   size: number;
   type: string;
-  content: string;
+  content: string; // 用于预览
+  rawFile: File;   // 原始文件对象，用于上传到后端
 }
 
 const App: React.FC = () => {
@@ -129,7 +130,8 @@ const App: React.FC = () => {
         name: file.name,
         size: file.size,
         type: file.type,
-        content: content
+        content: content,
+        rawFile: file // 保存原始文件对象
       });
 
       message.success(`文件 "${file.name}" 上传成功`);
@@ -182,6 +184,7 @@ const App: React.FC = () => {
     
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
+    const currentFile = uploadedFile;
     setUploadedFile(null);
     setUploadProgress(0);
     
@@ -194,15 +197,17 @@ const App: React.FC = () => {
     }]);
 
     try {
+      // 构造FormData，支持文件+文本同时上传
+      const formData = new FormData();
+      formData.append('prompt', prompt);
+      if (currentFile) {
+        formData.append('file', currentFile.rawFile, currentFile.name);
+      }
+
       const response = await fetch(`${API_BASE_URL}/llm/analyze`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prompt: prompt,
-          stream: true
-        }),
+        // 不要手动设置Content-Type，浏览器会自动处理multipart/form-data的boundary
+        body: formData,
         signal: AbortSignal.timeout(900000) // 15分钟超时
       });
 
@@ -269,13 +274,8 @@ const App: React.FC = () => {
       return;
     }
     
-    let fullPrompt = inputText;
-    let fileName: string | undefined = undefined;
-    
-    if (uploadedFile) {
-      fileName = uploadedFile.name;
-      fullPrompt += `\n\n--- 上传的文件内容 (${uploadedFile.name}) ---\n${uploadedFile.content}`;
-    }
+    const fullPrompt = inputText;
+    const fileName = uploadedFile?.name;
     
     sendToLLM(fullPrompt, fileName);
   };
@@ -466,7 +466,7 @@ const App: React.FC = () => {
                         <TextArea
                           value={inputText}
                           onChange={(e) => setInputText(e.target.value)}
-                          placeholder="请输入需要分析的告警信息、系统日志、性能指标或问题描述..."
+                          placeholder="请输入需要分析的告警信息、系统日志、性能指标或问题描述（可选）..."
                           rows={uploadedFile ? 10 : 15}
                           style={{ marginBottom: '16px' }}
                           disabled={isLoading}
@@ -488,7 +488,7 @@ const App: React.FC = () => {
                               marginBottom: '12px' 
                             }}>
                               <Text type="warning" style={{ fontSize: '13px' }}>
-                                ⚠️ 文件较大（{formatFileSize(uploadedFile.size)}），仅预览前5000行，完整内容将全部发送给分析脚本
+                                ⚠️ 文件较大（{formatFileSize(uploadedFile.size)}），仅预览前5000行，完整文件将发送给后端保存
                               </Text>
                             </div>
                           )}
@@ -496,11 +496,8 @@ const App: React.FC = () => {
                             value={uploadedFile.size > 5 * 1024 * 1024 
                               ? uploadedFile.content.split('\n').slice(0, 5000).join('\n') + '\n\n...（文件过大，预览已截断）'
                               : uploadedFile.content}
-                            onChange={(e) => setUploadedFile(prev => 
-                              prev ? { ...prev, content: e.target.value } : null
-                            )}
+                            readOnly
                             rows={13}
-                            readOnly={uploadedFile.size > 5 * 1024 * 1024}
                             style={{ marginBottom: '16px', flex: 1 }}
                           />
                         </div>
@@ -639,7 +636,6 @@ const App: React.FC = () => {
                       }}>
                         {msg.role === 'assistant' ? (
                           <div>
-                            {/* ✅ 核心修改：用pre标签渲染日志，完美保留换行 */}
                             <pre style={{
                               whiteSpace: 'pre-wrap',
                               wordBreak: 'break-word',
