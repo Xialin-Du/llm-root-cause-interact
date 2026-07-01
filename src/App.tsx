@@ -50,7 +50,7 @@ interface UploadedFile {
   size: number;
   type: string;
   content: string; // 用于预览
-  rawFile: File;   // 原始文件对象，用于上传到后端
+  rawFile: File;   // 原始文件对象
 }
 
 const App: React.FC = () => {
@@ -131,7 +131,7 @@ const App: React.FC = () => {
         size: file.size,
         type: file.type,
         content: content,
-        rawFile: file // 保存原始文件对象
+        rawFile: file
       });
 
       message.success(`文件 "${file.name}" 上传成功`);
@@ -171,13 +171,14 @@ const App: React.FC = () => {
     message.info('文件已删除');
   };
 
-  const sendToLLM = async (prompt: string, fileName?: string) => {
+  const sendToLLM = async (displayContent: string, fileName?: string) => {
     setIsLoading(true);
     
+    // 用户消息只显示精简内容，不展示完整文件数据
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: prompt,
+      content: displayContent,
       timestamp: new Date(),
       fileName: fileName
     };
@@ -197,16 +198,15 @@ const App: React.FC = () => {
     }]);
 
     try {
-      // 构造FormData，支持文件+文本同时上传
+      // 构造FormData，文件和文本分别传输
       const formData = new FormData();
-      formData.append('prompt', prompt);
+      formData.append('prompt', inputText);
       if (currentFile) {
         formData.append('file', currentFile.rawFile, currentFile.name);
       }
 
       const response = await fetch(`${API_BASE_URL}/llm/analyze`, {
         method: 'POST',
-        // 不要手动设置Content-Type，浏览器会自动处理multipart/form-data的boundary
         body: formData,
         signal: AbortSignal.timeout(900000) // 15分钟超时
       });
@@ -274,10 +274,20 @@ const App: React.FC = () => {
       return;
     }
     
-    const fullPrompt = inputText;
-    const fileName = uploadedFile?.name;
+    // 构造用户侧显示的精简内容
+    let displayContent = '';
+    if (inputText.trim()) {
+      displayContent = inputText;
+    }
+    if (uploadedFile) {
+      if (displayContent) {
+        displayContent += `\n\n[附件] 已上传文件：${uploadedFile.name}（${formatFileSize(uploadedFile.size)}）`;
+      } else {
+        displayContent = `[附件] 已上传文件：${uploadedFile.name}（${formatFileSize(uploadedFile.size)}）`;
+      }
+    }
     
-    sendToLLM(fullPrompt, fileName);
+    sendToLLM(displayContent, uploadedFile?.name);
   };
 
   const handleClearHistory = () => {
@@ -488,7 +498,7 @@ const App: React.FC = () => {
                               marginBottom: '12px' 
                             }}>
                               <Text type="warning" style={{ fontSize: '13px' }}>
-                                ⚠️ 文件较大（{formatFileSize(uploadedFile.size)}），仅预览前5000行，完整文件将发送给后端保存
+                                ⚠️ 文件较大（{formatFileSize(uploadedFile.size)}），仅预览前5000行，完整文件将发送给后端
                               </Text>
                             </div>
                           )}
@@ -698,9 +708,7 @@ const App: React.FC = () => {
                             borderRadius: '6px',
                             border: isDarkMode ? '1px solid #30363d' : '1px solid #e8e8e8'
                           }}>
-                            {msg.content.length > 1500 
-                              ? msg.content.substring(0, 1500) + '\n\n...（内容过长已截断，完整内容已发送给分析脚本）' 
-                              : msg.content}
+                            {msg.content}
                           </pre>
                         )}
                       </div>
