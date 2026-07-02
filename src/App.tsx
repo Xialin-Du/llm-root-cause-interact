@@ -10,16 +10,13 @@ import {
   Space,
   Typography,
   Tag,
-  Progress,
   Divider,
   ConfigProvider,
   theme
 } from 'antd';
 import { 
-  UploadOutlined, 
   SendOutlined, 
   ClearOutlined,
-  FileTextOutlined,
   DownloadOutlined,
   DeleteOutlined,
   SunOutlined,
