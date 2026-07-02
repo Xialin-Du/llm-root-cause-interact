@@ -24,7 +24,9 @@ import {
   DeleteOutlined,
   SunOutlined,
   MoonOutlined,
-  CloudServerOutlined
+  CloudServerOutlined,
+  AlertOutlined,
+  FileSearchOutlined
 } from '@ant-design/icons';
 
 const { Header, Content, Footer } = Layout;
@@ -40,7 +42,6 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
-  fileName?: string;
   taskId?: string;
 }
 
@@ -49,22 +50,28 @@ interface UploadedFile {
   name: string;
   size: number;
   type: string;
-  content: string; // 仅用于预览
-  rawFile: File;   // 原始文件对象
+  content: string;
+  rawFile: File;
 }
 
 const App: React.FC = () => {
   const [inputText, setInputText] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
+  
+  // 双文件状态独立管理
+  const [alarmFile, setAlarmFile] = useState<UploadedFile | null>(null);
+  const [ticketFile, setTicketFile] = useState<UploadedFile | null>(null);
+  
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     return localStorage.getItem('theme') !== 'light';
   });
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // 两个独立的文件选择器引用
+  const alarmFileInputRef = useRef<HTMLInputElement>(null);
+  const ticketFileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -85,32 +92,8 @@ const App: React.FC = () => {
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   };
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    
-    const file = files[0];
-    const maxSize = 100 * 1024 * 1024;
-
-    if (file.size > maxSize) {
-      message.error(`文件大小不能超过100MB，当前文件大小: ${formatFileSize(file.size)}`);
-      e.target.value = '';
-      return;
-    }
-
-    const allowedExtensions = ['.txt', '.log', '.csv', '.json', '.md'];
-    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-    
-    if (!allowedExtensions.includes(fileExtension)) {
-      message.error(`不支持的文件格式，请上传 ${allowedExtensions.join(', ')} 文件`);
-      e.target.value = '';
-      return;
-    }
-
+  // 通用文件读取函数
+  const readFile = (file: File, callback: (content: string) => void) => {
     setIsUploading(true);
     setUploadProgress(0);
 
@@ -125,68 +108,109 @@ const App: React.FC = () => {
 
     reader.onload = (event) => {
       const content = event.target?.result as string;
-      
-      setUploadedFile({
+      callback(content);
+      setIsUploading(false);
+    };
+    
+    reader.onerror = () => {
+      message.error('文件读取失败，请检查文件是否损坏');
+      setIsUploading(false);
+    };
+    
+    reader.readAsText(file);
+  };
+
+  // 告警文件上传处理
+  const handleAlarmUploadClick = () => {
+    alarmFileInputRef.current?.click();
+  };
+
+  const handleAlarmFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    const maxSize = 100 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+      message.error(`告警文件大小不能超过100MB，当前文件大小: ${formatFileSize(file.size)}`);
+      e.target.value = '';
+      return;
+    }
+
+    readFile(file, (content) => {
+      setAlarmFile({
         name: file.name,
         size: file.size,
         type: file.type,
         content: content,
         rawFile: file
       });
+      message.success(`告警文件 "${file.name}" 上传成功`);
+    });
+    
+    e.target.value = '';
+  };
 
-      message.success(`文件 "${file.name}" 上传成功`);
-      setIsUploading(false);
+  // 工单文件上传处理
+  const handleTicketUploadClick = () => {
+    ticketFileInputRef.current?.click();
+  };
+
+  const handleTicketFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    const maxSize = 100 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+      message.error(`工单文件大小不能超过100MB，当前文件大小: ${formatFileSize(file.size)}`);
       e.target.value = '';
-    };
+      return;
+    }
+
+    readFile(file, (content) => {
+      setTicketFile({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        content: content,
+        rawFile: file
+      });
+      message.success(`工单文件 "${file.name}" 上传成功`);
+    });
     
-    reader.onerror = () => {
-      message.error('文件读取失败，请检查文件是否损坏');
-      setIsUploading(false);
-      e.target.value = '';
-    };
-    
-    reader.readAsText(file);
+    e.target.value = '';
   };
 
-  const handleDownloadFile = () => {
-    if (!uploadedFile) return;
-
-    const blob = new Blob([uploadedFile.content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    
-    link.href = url;
-    link.download = uploadedFile.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    message.success(`文件 "${uploadedFile.name}" 下载成功`);
+  // 删除文件
+  const deleteAlarmFile = () => {
+    setAlarmFile(null);
+    message.info('告警文件已删除');
   };
 
-  const handleDeleteFile = () => {
-    setUploadedFile(null);
-    setUploadProgress(0);
-    message.info('文件已删除');
+  const deleteTicketFile = () => {
+    setTicketFile(null);
+    message.info('工单文件已删除');
   };
 
-  const sendToLLM = async (displayContent: string, fileName?: string) => {
+  const sendToLLM = async (displayContent: string) => {
     setIsLoading(true);
     
-    // 用户消息仅展示提示信息，不包含文件完整内容
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: displayContent,
-      timestamp: new Date(),
-      fileName: fileName
+      timestamp: new Date()
     };
     
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
-    const currentFile = uploadedFile;
-    setUploadedFile(null);
+    const currentAlarm = alarmFile;
+    const currentTicket = ticketFile;
+    setAlarmFile(null);
+    setTicketFile(null);
     setUploadProgress(0);
     
     const assistantMessageId = (Date.now() + 1).toString();
@@ -198,11 +222,14 @@ const App: React.FC = () => {
     }]);
 
     try {
-      // 构造FormData，文件和文本分别传输
+      // 构造FormData，携带两个文件
       const formData = new FormData();
       formData.append('prompt', inputText);
-      if (currentFile) {
-        formData.append('file', currentFile.rawFile, currentFile.name);
+      if (currentAlarm) {
+        formData.append('alarm_file', currentAlarm.rawFile, currentAlarm.name);
+      }
+      if (currentTicket) {
+        formData.append('ticket_file', currentTicket.rawFile, currentTicket.name);
       }
 
       const response = await fetch(`${API_BASE_URL}/llm/analyze`, {
@@ -228,7 +255,6 @@ const App: React.FC = () => {
         
         const chunk = decoder.decode(value);
         
-        // 识别任务完成标记
         if (chunk.includes('__TASK_DONE__:')) {
           const [contentPart, taskPart] = chunk.split('__TASK_DONE__:');
           
@@ -269,28 +295,38 @@ const App: React.FC = () => {
   };
 
   const handleSubmit = () => {
-    if (!inputText.trim() && !uploadedFile) {
-      message.warning('请输入文本或上传文件');
+    if (!inputText.trim() && !alarmFile && !ticketFile) {
+      message.warning('请输入文本或上传至少一个文件');
       return;
     }
     
-    // 构造用户侧显示的内容（仅展示文件名，不展示文件内容）
+    // 构造用户侧显示内容
     let displayContent = '';
     if (inputText.trim()) {
       displayContent += inputText;
     }
-    if (uploadedFile) {
+    if (alarmFile) {
       if (displayContent) displayContent += '\n\n';
-      displayContent += `📎 已上传文件：${uploadedFile.name}（${formatFileSize(uploadedFile.size)}）`;
+      displayContent += `🚨 已上传告警文件：${alarmFile.name}（${formatFileSize(alarmFile.size)}）`;
+    }
+    if (ticketFile) {
+      if (displayContent) displayContent += '\n';
+      displayContent += `📋 已上传工单文件：${ticketFile.name}（${formatFileSize(ticketFile.size)}）`;
     }
     
-    const fileName = uploadedFile?.name;
-    sendToLLM(displayContent, fileName);
+    sendToLLM(displayContent);
   };
 
   const handleClearHistory = () => {
     setMessages([]);
     message.info('对话历史已清空');
+  };
+
+  const handleClearAll = () => {
+    setInputText('');
+    setAlarmFile(null);
+    setTicketFile(null);
+    setUploadProgress(0);
   };
 
   const themeConfig = {
@@ -376,10 +412,18 @@ const App: React.FC = () => {
               }}
               extra={
                 <Space>
+                  {/* 隐藏的文件输入框 */}
                   <input
                     type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
+                    ref={alarmFileInputRef}
+                    onChange={handleAlarmFileChange}
+                    accept=".txt,.log,.csv,.json,.md"
+                    style={{ display: 'none' }}
+                  />
+                  <input
+                    type="file"
+                    ref={ticketFileInputRef}
+                    onChange={handleTicketFileChange}
                     accept=".txt,.log,.csv,.json,.md"
                     style={{ display: 'none' }}
                   />
@@ -387,21 +431,28 @@ const App: React.FC = () => {
                   <Button 
                     type="primary"
                     ghost
-                    icon={<UploadOutlined />} 
+                    icon={<AlertOutlined />} 
                     loading={isUploading}
-                    onClick={handleUploadClick}
+                    onClick={handleAlarmUploadClick}
                     disabled={isLoading}
                   >
-                    {isUploading ? '上传中...' : '上传数据文件'}
+                    上传告警文件
+                  </Button>
+                  
+                  <Button 
+                    type="primary"
+                    ghost
+                    icon={<FileSearchOutlined />} 
+                    loading={isUploading}
+                    onClick={handleTicketUploadClick}
+                    disabled={isLoading}
+                  >
+                    上传工单文件
                   </Button>
                   
                   <Button 
                     icon={<ClearOutlined />} 
-                    onClick={() => {
-                      setInputText('');
-                      setUploadedFile(null);
-                      setUploadProgress(0);
-                    }}
+                    onClick={handleClearAll}
                     disabled={isLoading}
                   >
                     清空
@@ -419,49 +470,79 @@ const App: React.FC = () => {
                   />
                 )}
 
-                {uploadedFile && (
+                {/* 告警文件信息 */}
+                {alarmFile && (
                   <div style={{ 
-                    padding: '14px 16px', 
-                    background: isDarkMode ? '#1c2128' : '#f0f7ff', 
+                    padding: '12px 14px', 
+                    background: isDarkMode ? '#1c2128' : '#fff1f0', 
+                    borderRadius: '8px', 
+                    marginBottom: '12px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    border: isDarkMode ? '1px solid #30363d' : '1px solid #ffccc7'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <AlertOutlined style={{ 
+                        fontSize: '18px', 
+                        color: '#ff4d4f', 
+                        marginRight: '10px' 
+                      }} />
+                      <div>
+                        <Text strong style={{ fontSize: '13px' }}>告警文件：{alarmFile.name}</Text>
+                        <div>
+                          <Tag color="red" style={{ marginTop: '4px', fontSize: '11px' }}>
+                            {formatFileSize(alarmFile.size)}
+                          </Tag>
+                        </div>
+                      </div>
+                    </div>
+                    <Button 
+                      type="text" 
+                      size="small"
+                      danger 
+                      icon={<DeleteOutlined />} 
+                      onClick={deleteAlarmFile}
+                      title="删除文件"
+                    />
+                  </div>
+                )}
+
+                {/* 工单文件信息 */}
+                {ticketFile && (
+                  <div style={{ 
+                    padding: '12px 14px', 
+                    background: isDarkMode ? '#1c2128' : '#e6f7ff', 
                     borderRadius: '8px', 
                     marginBottom: '16px',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    border: isDarkMode ? '1px solid #30363d' : '1px solid #bae0ff'
+                    border: isDarkMode ? '1px solid #30363d' : '1px solid #91caff'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <FileTextOutlined style={{ 
-                        fontSize: '20px', 
+                      <FileSearchOutlined style={{ 
+                        fontSize: '18px', 
                         color: '#1677ff', 
-                        marginRight: '12px' 
+                        marginRight: '10px' 
                       }} />
                       <div>
-                        <Text strong style={{ fontSize: '14px' }}>{uploadedFile.name}</Text>
+                        <Text strong style={{ fontSize: '13px' }}>工单文件：{ticketFile.name}</Text>
                         <div>
-                          <Tag color="blue" style={{ marginTop: '4px', fontSize: '12px' }}>
-                            {formatFileSize(uploadedFile.size)}
+                          <Tag color="blue" style={{ marginTop: '4px', fontSize: '11px' }}>
+                            {formatFileSize(ticketFile.size)}
                           </Tag>
                         </div>
                       </div>
                     </div>
-                    <Space>
-                      <Button 
-                        type="text" 
-                        size="small"
-                        icon={<DownloadOutlined />} 
-                        onClick={handleDownloadFile}
-                        title="下载文件"
-                      />
-                      <Button 
-                        type="text" 
-                        size="small"
-                        danger 
-                        icon={<DeleteOutlined />} 
-                        onClick={handleDeleteFile}
-                        title="删除文件"
-                      />
-                    </Space>
+                    <Button 
+                      type="text" 
+                      size="small"
+                      danger 
+                      icon={<DeleteOutlined />} 
+                      onClick={deleteTicketFile}
+                      title="删除文件"
+                    />
                   </div>
                 )}
 
@@ -474,52 +555,57 @@ const App: React.FC = () => {
                         <TextArea
                           value={inputText}
                           onChange={(e) => setInputText(e.target.value)}
-                          placeholder="请输入补充说明（可选，脚本独立运行时可留空）..."
-                          rows={uploadedFile ? 10 : 15}
+                          placeholder="请输入补充说明（可选）..."
+                          rows={8}
                           style={{ marginBottom: '16px' }}
                           disabled={isLoading}
-                          autoSize={{ minRows: uploadedFile ? 10 : 15, maxRows: 20 }}
+                          autoSize={{ minRows: 8, maxRows: 12 }}
                         />
                       )
                     },
                     {
-                      key: 'file',
-                      label: '文件内容预览',
-                      children: uploadedFile ? (
+                      key: 'alarm',
+                      label: '告警文件预览',
+                      children: alarmFile ? (
                         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                          {uploadedFile.size > 5 * 1024 * 1024 && (
-                            <div style={{ 
-                              padding: '10px 12px', 
-                              background: isDarkMode ? '#2a2415' : '#fffbe6', 
-                              border: isDarkMode ? '1px solid #463a1a' : '1px solid #ffe58f', 
-                              borderRadius: '6px', 
-                              marginBottom: '12px' 
-                            }}>
-                              <Text type="warning" style={{ fontSize: '13px' }}>
-                                ⚠️ 文件较大（{formatFileSize(uploadedFile.size)}），仅预览前5000行
-                              </Text>
-                            </div>
-                          )}
                           <TextArea
-                            value={uploadedFile.size > 5 * 1024 * 1024 
-                              ? uploadedFile.content.split('\n').slice(0, 5000).join('\n') + '\n\n...（文件过大，预览已截断）'
-                              : uploadedFile.content}
+                            value={alarmFile.content}
                             readOnly
-                            rows={13}
+                            rows={12}
                             style={{ marginBottom: '16px', flex: 1 }}
                           />
                         </div>
                       ) : (
                         <div style={{ 
                           textAlign: 'center', 
-                          padding: '80px 0',
+                          padding: '60px 0',
                           color: isDarkMode ? '#8b949e' : '#999'
                         }}>
-                          <FileTextOutlined style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }} />
-                          <Paragraph>请先上传数据文件</Paragraph>
-                          <Paragraph type="secondary">
-                            支持 .txt, .log, .csv, .json, .md 格式，最大100MB
-                          </Paragraph>
+                          <AlertOutlined style={{ fontSize: '40px', marginBottom: '12px', opacity: 0.3 }} />
+                          <Paragraph type="secondary">请先上传告警文件</Paragraph>
+                        </div>
+                      )
+                    },
+                    {
+                      key: 'ticket',
+                      label: '工单文件预览',
+                      children: ticketFile ? (
+                        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                          <TextArea
+                            value={ticketFile.content}
+                            readOnly
+                            rows={12}
+                            style={{ marginBottom: '16px', flex: 1 }}
+                          />
+                        </div>
+                      ) : (
+                        <div style={{ 
+                          textAlign: 'center', 
+                          padding: '60px 0',
+                          color: isDarkMode ? '#8b949e' : '#999'
+                        }}>
+                          <FileSearchOutlined style={{ fontSize: '40px', marginBottom: '12px', opacity: 0.3 }} />
+                          <Paragraph type="secondary">请先上传工单文件</Paragraph>
                         </div>
                       )
                     }
@@ -582,10 +668,10 @@ const App: React.FC = () => {
                       开始根因分析
                     </Title>
                     <Paragraph type="secondary">
-                      在左侧输入告警信息、系统日志或上传数据文件
+                      上传告警文件和工单文件，点击开始分析
                     </Paragraph>
                     <Paragraph type="secondary">
-                      点击"开始根因分析"按钮获取专业的故障分析报告
+                      系统将自动执行分析并输出结果报告
                     </Paragraph>
                   </div>
                 ) : (
@@ -626,11 +712,6 @@ const App: React.FC = () => {
                           <Text strong style={{ fontSize: '14px' }}>
                             {msg.role === 'user' ? '输入数据' : '分析结果'}
                           </Text>
-                          {msg.fileName && (
-                            <Tag color="blue" style={{ marginLeft: '12px', fontSize: '12px' }}>
-                              含附件
-                            </Tag>
-                          )}
                         </div>
                         <Text type="secondary" style={{ fontSize: '12px' }}>
                           {msg.timestamp.toLocaleTimeString()}
