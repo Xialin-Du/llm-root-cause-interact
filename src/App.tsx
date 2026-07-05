@@ -23,8 +23,11 @@ import {
   MoonOutlined,
   CloudServerOutlined,
   AlertOutlined,
-  SolutionOutlined
+  SolutionOutlined,
+  FileSearchOutlined
 } from '@ant-design/icons';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const { Header, Content, Footer } = Layout;
 const { TextArea } = Input;
@@ -40,6 +43,7 @@ interface Message {
   content: string;
   timestamp: Date;
   taskId?: string;
+  type?: 'log' | 'report'; // 区分运行日志和分析报告
 }
 
 // 上传文件类型定义
@@ -169,7 +173,8 @@ const App: React.FC = () => {
       id: assistantMessageId,
       role: 'assistant',
       content: '',
-      timestamp: new Date()
+      timestamp: new Date(),
+      type: 'log'
     }]);
 
     try {
@@ -241,6 +246,61 @@ const App: React.FC = () => {
       ));
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // 新增：生成大模型分析报告
+  const handleGenerateReport = async (taskId: string) => {
+    const reportMessageId = Date.now().toString();
+    setMessages(prev => [...prev, {
+      id: reportMessageId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+      type: 'report'
+    }]);
+
+    try {
+      const formData = new FormData();
+      formData.append('task_id', taskId);
+
+      const response = await fetch(`${API_BASE_URL}/llm/generate-report`, {
+        method: 'POST',
+        body: formData,
+        signal: AbortSignal.timeout(180000) // 3分钟超时
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('无法读取响应流');
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        setMessages(prev => prev.map(msg => 
+          msg.id === reportMessageId 
+            ? { ...msg, content: msg.content + chunk }
+            : msg
+        ));
+      }
+    } catch (error) {
+      console.error('生成报告失败:', error);
+      message.error('生成分析报告失败，请检查大模型配置');
+      
+      setMessages(prev => prev.map(msg => 
+        msg.id === reportMessageId 
+          ? { ...msg, content: '**错误：** 生成分析报告失败，请检查后端大模型配置是否正确。' }
+          : msg
+      ));
     }
   };
 
@@ -632,7 +692,7 @@ const App: React.FC = () => {
                             {msg.role === 'user' ? '👤' : '🤖'}
                           </span>
                           <Text strong style={{ fontSize: '14px' }}>
-                            {msg.role === 'user' ? '输入数据' : '分析结果'}
+                            {msg.role === 'user' ? '输入数据' : (msg.type === 'report' ? 'AI分析报告' : '运行日志')}
                           </Text>
                         </div>
                         <Text type="secondary" style={{ fontSize: '12px' }}>
@@ -647,24 +707,33 @@ const App: React.FC = () => {
                       }}>
                         {msg.role === 'assistant' ? (
                           <div>
-                            <pre style={{
-                              whiteSpace: 'pre-wrap',
-                              wordBreak: 'break-word',
-                              margin: 0,
-                              fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
-                              fontSize: '13px',
-                              lineHeight: '1.6',
-                              color: isDarkMode ? '#c9d1d9' : '#24292f',
-                              background: isDarkMode ? '#0d1117' : '#f6f8fa',
-                              padding: '12px',
-                              borderRadius: '6px',
-                              border: isDarkMode ? '1px solid #30363d' : '1px solid #e8e8e8'
-                            }}>
-                              {msg.content}
-                            </pre>
+                            {/* 报告类型用Markdown渲染，日志用等宽字体 */}
+                            {msg.type === 'report' ? (
+                              <div className="markdown-body">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {msg.content}
+                                </ReactMarkdown>
+                              </div>
+                            ) : (
+                              <pre style={{
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word',
+                                margin: 0,
+                                fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
+                                fontSize: '13px',
+                                lineHeight: '1.6',
+                                color: isDarkMode ? '#c9d1d9' : '#24292f',
+                                background: isDarkMode ? '#0d1117' : '#f6f8fa',
+                                padding: '12px',
+                                borderRadius: '6px',
+                                border: isDarkMode ? '1px solid #30363d' : '1px solid #e8e8e8'
+                              }}>
+                                {msg.content}
+                              </pre>
+                            )}
 
-                            {/* 下载按钮区域 */}
-                            {msg.taskId && (
+                            {/* 仅日志消息且有任务ID时，显示下载+生成报告按钮 */}
+                            {msg.taskId && msg.type !== 'report' && (
                               <div style={{ 
                                 marginTop: '16px', 
                                 paddingTop: '12px', 
@@ -673,7 +742,7 @@ const App: React.FC = () => {
                                 <Text type="secondary" style={{ marginRight: '12px' }}>
                                   运行结果文件：
                                 </Text>
-                                <Space>
+                                <Space wrap>
                                   <Button 
                                     size="small" 
                                     type="primary"
@@ -691,6 +760,14 @@ const App: React.FC = () => {
                                     onClick={() => window.open(`${API_BASE_URL}/download/${msg.taskId}/jsonl`, '_blank')}
                                   >
                                     下载 JSONL
+                                  </Button>
+                                  <Button 
+                                    size="small" 
+                                    type="primary"
+                                    icon={<FileSearchOutlined />}
+                                    onClick={() => handleGenerateReport(msg.taskId!)}
+                                  >
+                                    生成AI分析报告
                                   </Button>
                                 </Space>
                               </div>
