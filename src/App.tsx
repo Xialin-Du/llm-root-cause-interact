@@ -36,7 +36,7 @@ const { Title, Paragraph, Text } = Typography;
 // 后端API配置
 const API_BASE_URL = 'http://localhost:8000/api';
 
-// 消息类型定义
+// 消息类型定义。
 interface Message {
   id: string;
   role: 'user' | 'assistant';
