@@ -33,20 +33,17 @@ const { Header, Content, Footer } = Layout;
 const { TextArea } = Input;
 const { Title, Paragraph, Text } = Typography;
 
-// 后端API配置
 const API_BASE_URL = 'http://localhost:8000/api';
 
-// 消息类型定义。
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
   taskId?: string;
-  type?: 'log' | 'report'; // 区分运行日志和分析报告
+  type?: 'log' | 'report';
 }
 
-// 上传文件类型定义
 interface UploadedFile {
   name: string;
   size: number;
@@ -59,7 +56,6 @@ const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   
-  // 两个独立的文件状态
   const [alarmFile, setAlarmFile] = useState<UploadedFile | null>(null);
   const [workorderFile, setWorkorderFile] = useState<UploadedFile | null>(null);
   
@@ -67,7 +63,6 @@ const App: React.FC = () => {
     return localStorage.getItem('theme') !== 'light';
   });
   
-  // 两个文件选择器ref
   const alarmFileRef = useRef<HTMLInputElement>(null);
   const workorderFileRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -90,7 +85,6 @@ const App: React.FC = () => {
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   };
 
-  // 通用文件读取处理
   const readFile = (file: File, callback: (result: UploadedFile) => void) => {
     const maxSize = 100 * 1024 * 1024;
     if (file.size > maxSize) {
@@ -123,7 +117,6 @@ const App: React.FC = () => {
     reader.readAsText(file);
   };
 
-  // 告警文件选择
   const handleAlarmFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -131,7 +124,6 @@ const App: React.FC = () => {
     e.target.value = '';
   };
 
-  // 工单文件选择
   const handleWorkorderFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -139,13 +131,11 @@ const App: React.FC = () => {
     e.target.value = '';
   };
 
-  // 删除告警文件
   const deleteAlarmFile = () => {
     setAlarmFile(null);
     message.info('告警文件已删除');
   };
 
-  // 删除工单文件
   const deleteWorkorderFile = () => {
     setWorkorderFile(null);
     message.info('工单文件已删除');
@@ -190,7 +180,7 @@ const App: React.FC = () => {
       const response = await fetch(`${API_BASE_URL}/llm/analyze`, {
         method: 'POST',
         body: formData,
-        signal: AbortSignal.timeout(900000) // 15分钟超时
+        signal: AbortSignal.timeout(900000)
       });
 
       if (!response.ok) {
@@ -249,9 +239,10 @@ const App: React.FC = () => {
     }
   };
 
-  // 新增：生成大模型分析报告
   const handleGenerateReport = async (taskId: string) => {
     const reportMessageId = Date.now().toString();
+    const query = inputText.trim();
+    
     setMessages(prev => [...prev, {
       id: reportMessageId,
       role: 'assistant',
@@ -260,14 +251,18 @@ const App: React.FC = () => {
       type: 'report'
     }]);
 
+    // 提问后清空输入框，方便下一次输入
+    setInputText('');
+
     try {
       const formData = new FormData();
       formData.append('task_id', taskId);
+      formData.append('user_query', query);
 
       const response = await fetch(`${API_BASE_URL}/llm/generate-report`, {
         method: 'POST',
         body: formData,
-        signal: AbortSignal.timeout(180000) // 3分钟超时
+        signal: AbortSignal.timeout(180000)
       });
 
       if (!response.ok) {
@@ -310,7 +305,6 @@ const App: React.FC = () => {
       return;
     }
     
-    // 构造用户侧显示内容
     let displayContent = '';
     if (inputText.trim()) {
       displayContent += inputText;
@@ -428,7 +422,6 @@ const App: React.FC = () => {
               }
             >
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {/* 双文件上传按钮区 */}
                 <Space style={{ marginBottom: '16px' }} wrap>
                   <input
                     type="file"
@@ -465,7 +458,6 @@ const App: React.FC = () => {
                   </Button>
                 </Space>
 
-                {/* 已上传文件信息 */}
                 {alarmFile && (
                   <div style={{ 
                     padding: '12px 14px', 
@@ -536,12 +528,12 @@ const App: React.FC = () => {
                   items={[
                     {
                       key: 'text',
-                      label: '补充说明（可选）',
+                      label: '补充说明 / 提问',
                       children: (
                         <TextArea
                           value={inputText}
                           onChange={(e) => setInputText(e.target.value)}
-                          placeholder="可输入补充说明或备注信息，脚本独立运行时可留空..."
+                          placeholder="运行前可填写补充说明；任务完成后可输入问题继续追问，基于已有结果数据解答..."
                           rows={8}
                           style={{ marginBottom: '16px' }}
                           disabled={isLoading}
@@ -707,7 +699,6 @@ const App: React.FC = () => {
                       }}>
                         {msg.role === 'assistant' ? (
                           <div>
-                            {/* 报告类型用Markdown渲染，日志用等宽字体 */}
                             {msg.type === 'report' ? (
                               <div className="markdown-body">
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -732,7 +723,6 @@ const App: React.FC = () => {
                               </pre>
                             )}
 
-                            {/* 仅日志消息且有任务ID时，显示下载+生成报告按钮 */}
                             {msg.taskId && msg.type !== 'report' && (
                               <div style={{ 
                                 marginTop: '16px', 
