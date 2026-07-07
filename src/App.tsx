@@ -23,27 +23,26 @@ import {
   MoonOutlined,
   CloudServerOutlined,
   AlertOutlined,
-  SolutionOutlined,
-  FileSearchOutlined
+  SolutionOutlined
 } from '@ant-design/icons';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 const { Header, Content, Footer } = Layout;
 const { TextArea } = Input;
 const { Title, Paragraph, Text } = Typography;
 
+// 后端API配置
 const API_BASE_URL = 'http://localhost:8000/api';
 
+// 消息类型定义
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
   taskId?: string;
-  type?: 'log' | 'report';
 }
 
+// 上传文件类型定义
 interface UploadedFile {
   name: string;
   size: number;
@@ -56,6 +55,7 @@ const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   
+  // 两个独立的文件状态
   const [alarmFile, setAlarmFile] = useState<UploadedFile | null>(null);
   const [workorderFile, setWorkorderFile] = useState<UploadedFile | null>(null);
   
@@ -63,6 +63,7 @@ const App: React.FC = () => {
     return localStorage.getItem('theme') !== 'light';
   });
   
+  // 两个文件选择器ref
   const alarmFileRef = useRef<HTMLInputElement>(null);
   const workorderFileRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -85,6 +86,7 @@ const App: React.FC = () => {
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   };
 
+  // 通用文件读取处理
   const readFile = (file: File, callback: (result: UploadedFile) => void) => {
     const maxSize = 100 * 1024 * 1024;
     if (file.size > maxSize) {
@@ -117,6 +119,7 @@ const App: React.FC = () => {
     reader.readAsText(file);
   };
 
+  // 告警文件选择
   const handleAlarmFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -124,6 +127,7 @@ const App: React.FC = () => {
     e.target.value = '';
   };
 
+  // 工单文件选择
   const handleWorkorderFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -131,11 +135,13 @@ const App: React.FC = () => {
     e.target.value = '';
   };
 
+  // 删除告警文件
   const deleteAlarmFile = () => {
     setAlarmFile(null);
     message.info('告警文件已删除');
   };
 
+  // 删除工单文件
   const deleteWorkorderFile = () => {
     setWorkorderFile(null);
     message.info('工单文件已删除');
@@ -163,8 +169,7 @@ const App: React.FC = () => {
       id: assistantMessageId,
       role: 'assistant',
       content: '',
-      timestamp: new Date(),
-      type: 'log'
+      timestamp: new Date()
     }]);
 
     try {
@@ -180,7 +185,7 @@ const App: React.FC = () => {
       const response = await fetch(`${API_BASE_URL}/llm/analyze`, {
         method: 'POST',
         body: formData,
-        signal: AbortSignal.timeout(900000)
+        signal: AbortSignal.timeout(900000) // 15分钟超时
       });
 
       if (!response.ok) {
@@ -239,72 +244,13 @@ const App: React.FC = () => {
     }
   };
 
-  const handleGenerateReport = async (taskId: string) => {
-    const reportMessageId = Date.now().toString();
-    const query = inputText.trim();
-    
-    setMessages(prev => [...prev, {
-      id: reportMessageId,
-      role: 'assistant',
-      content: '',
-      timestamp: new Date(),
-      type: 'report'
-    }]);
-
-    // 提问后清空输入框，方便下一次输入
-    setInputText('');
-
-    try {
-      const formData = new FormData();
-      formData.append('task_id', taskId);
-      formData.append('user_query', query);
-
-      const response = await fetch(`${API_BASE_URL}/llm/generate-report`, {
-        method: 'POST',
-        body: formData,
-        signal: AbortSignal.timeout(180000)
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (!reader) {
-        throw new Error('无法读取响应流');
-      }
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        const chunk = decoder.decode(value);
-        setMessages(prev => prev.map(msg => 
-          msg.id === reportMessageId 
-            ? { ...msg, content: msg.content + chunk }
-            : msg
-        ));
-      }
-    } catch (error) {
-      console.error('生成报告失败:', error);
-      message.error('生成分析报告失败，请检查大模型配置');
-      
-      setMessages(prev => prev.map(msg => 
-        msg.id === reportMessageId 
-          ? { ...msg, content: '**错误：** 生成分析报告失败，请检查后端大模型配置是否正确。' }
-          : msg
-      ));
-    }
-  };
-
   const handleSubmit = () => {
     if (!inputText.trim() && !alarmFile && !workorderFile) {
       message.warning('请输入文本或上传至少一个数据文件');
       return;
     }
     
+    // 构造用户侧显示内容
     let displayContent = '';
     if (inputText.trim()) {
       displayContent += inputText;
@@ -422,6 +368,7 @@ const App: React.FC = () => {
               }
             >
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                {/* 双文件上传按钮区 */}
                 <Space style={{ marginBottom: '16px' }} wrap>
                   <input
                     type="file"
@@ -458,6 +405,7 @@ const App: React.FC = () => {
                   </Button>
                 </Space>
 
+                {/* 已上传文件信息 */}
                 {alarmFile && (
                   <div style={{ 
                     padding: '12px 14px', 
@@ -528,12 +476,12 @@ const App: React.FC = () => {
                   items={[
                     {
                       key: 'text',
-                      label: '补充说明 / 提问',
+                      label: '补充说明（可选）',
                       children: (
                         <TextArea
                           value={inputText}
                           onChange={(e) => setInputText(e.target.value)}
-                          placeholder="运行前可填写补充说明；任务完成后可输入问题继续追问，基于已有结果数据解答..."
+                          placeholder="可输入补充说明或备注信息，脚本独立运行时可留空..."
                           rows={8}
                           style={{ marginBottom: '16px' }}
                           disabled={isLoading}
@@ -684,7 +632,7 @@ const App: React.FC = () => {
                             {msg.role === 'user' ? '👤' : '🤖'}
                           </span>
                           <Text strong style={{ fontSize: '14px' }}>
-                            {msg.role === 'user' ? '输入数据' : (msg.type === 'report' ? 'AI分析报告' : '运行日志')}
+                            {msg.role === 'user' ? '输入数据' : '分析结果'}
                           </Text>
                         </div>
                         <Text type="secondary" style={{ fontSize: '12px' }}>
@@ -699,31 +647,24 @@ const App: React.FC = () => {
                       }}>
                         {msg.role === 'assistant' ? (
                           <div>
-                            {msg.type === 'report' ? (
-                              <div className="markdown-body">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                  {msg.content}
-                                </ReactMarkdown>
-                              </div>
-                            ) : (
-                              <pre style={{
-                                whiteSpace: 'pre-wrap',
-                                wordBreak: 'break-word',
-                                margin: 0,
-                                fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
-                                fontSize: '13px',
-                                lineHeight: '1.6',
-                                color: isDarkMode ? '#c9d1d9' : '#24292f',
-                                background: isDarkMode ? '#0d1117' : '#f6f8fa',
-                                padding: '12px',
-                                borderRadius: '6px',
-                                border: isDarkMode ? '1px solid #30363d' : '1px solid #e8e8e8'
-                              }}>
-                                {msg.content}
-                              </pre>
-                            )}
+                            <pre style={{
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                              margin: 0,
+                              fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
+                              fontSize: '13px',
+                              lineHeight: '1.6',
+                              color: isDarkMode ? '#c9d1d9' : '#24292f',
+                              background: isDarkMode ? '#0d1117' : '#f6f8fa',
+                              padding: '12px',
+                              borderRadius: '6px',
+                              border: isDarkMode ? '1px solid #30363d' : '1px solid #e8e8e8'
+                            }}>
+                              {msg.content}
+                            </pre>
 
-                            {msg.taskId && msg.type !== 'report' && (
+                            {/* 下载按钮区域 */}
+                            {msg.taskId && (
                               <div style={{ 
                                 marginTop: '16px', 
                                 paddingTop: '12px', 
@@ -732,7 +673,7 @@ const App: React.FC = () => {
                                 <Text type="secondary" style={{ marginRight: '12px' }}>
                                   运行结果文件：
                                 </Text>
-                                <Space wrap>
+                                <Space>
                                   <Button 
                                     size="small" 
                                     type="primary"
@@ -750,14 +691,6 @@ const App: React.FC = () => {
                                     onClick={() => window.open(`${API_BASE_URL}/download/${msg.taskId}/jsonl`, '_blank')}
                                   >
                                     下载 JSONL
-                                  </Button>
-                                  <Button 
-                                    size="small" 
-                                    type="primary"
-                                    icon={<FileSearchOutlined />}
-                                    onClick={() => handleGenerateReport(msg.taskId!)}
-                                  >
-                                    生成AI分析报告
                                   </Button>
                                 </Space>
                               </div>
