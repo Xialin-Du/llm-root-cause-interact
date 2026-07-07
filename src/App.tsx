@@ -829,7 +829,7 @@ const App: React.FC = () => {
                     style={{ marginTop: 'auto', height: '44px', fontSize: '15px', fontWeight: 500 }}
                     block
                   >
-                    {isLoading ? '分析任务运行中...' : '开始根因分析'}
+                    {isLoading ? '分析任务运行中...' : '开始根因定位分析'}
                   </Button>
                 </div>
               </Card>
@@ -871,13 +871,13 @@ const App: React.FC = () => {
                     }}>
                       <CloudServerOutlined style={{ fontSize: '64px', marginBottom: '20px', opacity: 0.2 }} />
                       <Title level={4} style={{ color: isDarkMode ? '#8b949e' : '#999', marginBottom: '12px' }}>
-                        开始根因分析
+                        开始根因定位分析
                       </Title>
                       <Paragraph type="secondary">
                         在左侧上传告警数据和工单数据文件
                       </Paragraph>
                       <Paragraph type="secondary">
-                        点击"开始根因分析"按钮获取专业的故障分析报告
+                        点击"开始根因定位分析"按钮获取专业的故障分析报告
                       </Paragraph>
                     </div>
                   ) : (
