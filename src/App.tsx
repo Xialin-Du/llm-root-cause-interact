@@ -141,7 +141,7 @@ const App: React.FC = () => {
     });
   };
 
-  // ========== 会话操作方法 ==========
+  // ========== 会话操作方法1 ==========
   const createNewSession = (alarmName?: string, workorderName?: string): string => {
     const sessionId = `session_${Date.now()}`;
     const newSession: HistorySession = {
