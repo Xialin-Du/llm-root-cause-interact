@@ -100,7 +100,7 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // 会话变化时自动持久化
+  // 会话变化时自动持久化1
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
