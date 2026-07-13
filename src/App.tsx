@@ -141,7 +141,7 @@ const App: React.FC = () => {
     });
   };
 
-  // ========== 会话操作方法1 ==========
+  // ========== 会话操作方法 ==========
   const createNewSession = (alarmName?: string, workorderName?: string): string => {
     const sessionId = `session_${Date.now()}`;
     const newSession: HistorySession = {
@@ -191,7 +191,7 @@ const App: React.FC = () => {
   };
 
   const readFile = (file: File, callback: (result: UploadedFile) => void) => {
-    const maxSize = 800 * 1024 * 1024;
+    const maxSize = 100 * 1024 * 1024;
     if (file.size > maxSize) {
       message.error(`文件大小不能超过100MB，当前文件大小: ${formatFileSize(file.size)}`);
       return;
@@ -268,8 +268,6 @@ const App: React.FC = () => {
     const currentWorkorder = workorderFile;
     setAlarmFile(null);
     setWorkorderFile(null);
-    if(alarmFileRef.current) alarmFileRef.current.value = "";
-    if(workorderFileRef.current) workorderFileRef.current.value = "";
     
     const assistantMessageId = (Date.now() + 1).toString();
     updateSessionMessages(sessionId, msgs => [...msgs, {
@@ -293,7 +291,7 @@ const App: React.FC = () => {
       const response = await fetch(`${API_BASE_URL}/llm/analyze`, {
         method: 'POST',
         body: formData,
-        signal: AbortSignal.timeout(2400000)
+        signal: AbortSignal.timeout(900000)
       });
 
       if (!response.ok) {
