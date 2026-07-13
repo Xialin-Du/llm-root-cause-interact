@@ -100,7 +100,7 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // 会话变化时自动持久化1
+  // 会话变化时自动持久化
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
@@ -191,7 +191,7 @@ const App: React.FC = () => {
   };
 
   const readFile = (file: File, callback: (result: UploadedFile) => void) => {
-    const maxSize = 800 * 1024 * 1024;
+    const maxSize = 100 * 1024 * 1024;
     if (file.size > maxSize) {
       message.error(`文件大小不能超过100MB，当前文件大小: ${formatFileSize(file.size)}`);
       return;
@@ -291,7 +291,7 @@ const App: React.FC = () => {
       const response = await fetch(`${API_BASE_URL}/llm/analyze`, {
         method: 'POST',
         body: formData,
-        signal: AbortSignal.timeout(1800000)
+        signal: AbortSignal.timeout(900000)
       });
 
       if (!response.ok) {
@@ -376,7 +376,7 @@ const App: React.FC = () => {
       const response = await fetch(`${API_BASE_URL}/llm/generate-report`, {
         method: 'POST',
         body: formData,
-        signal: AbortSignal.timeout(1800000)
+        signal: AbortSignal.timeout(180000)
       });
 
       if (!response.ok) {
