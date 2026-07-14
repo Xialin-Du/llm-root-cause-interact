@@ -249,7 +249,7 @@ const App: React.FC = () => {
   const sendToLLM = async (displayContent: string) => {
     setIsLoading(true);
     
-    // 创建新会话1
+    // 创建新会话12
     const sessionId = createNewSession(
       alarmFile?.name,
       workorderFile?.name
