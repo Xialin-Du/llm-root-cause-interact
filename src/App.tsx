@@ -376,6 +376,7 @@ const App: React.FC = () => {
 
       const response = await fetch(`${API_BASE_URL}/llm/generate-report`, {
         method: 'POST',
+        mode: "cors",
         body: formData,
         signal: AbortSignal.timeout(180000)
       });
