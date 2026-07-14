@@ -114,7 +114,7 @@ const App: React.FC = () => {
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
-  // 当前会话的消息列表
+  // 当前会话的消息列表1
   const currentMessages = sessions.find(s => s.id === currentSessionId)?.messages || [];
 
   const scrollToBottom = () => {
