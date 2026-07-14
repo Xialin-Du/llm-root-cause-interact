@@ -39,7 +39,7 @@ const { Header, Content, Sider } = Layout;
 const { TextArea } = Input;
 const { Title, Paragraph, Text } = Typography;
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'http://39.96.7.131:8000/api';
 const STORAGE_KEY = 'root_cause_history_sessions';
 
 interface Message {
