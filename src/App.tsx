@@ -288,57 +288,82 @@ const App: React.FC = () => {
         formData.append('workorder_file', currentWorkorder.rawFile, currentWorkorder.name);
       }
 
-      const response = await fetch(`${API_BASE_URL}/llm/analyze`, {
+      // 第一步：提交任务，立刻拿到task_id
+      const submitResponse = await fetch(`${API_BASE_URL}/llm/analyze`, {
         method: 'POST',
-        mode: "cors",
         body: formData,
-        signal: AbortSignal.timeout(900000)
+        signal: AbortSignal.timeout(30000)
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (!submitResponse.ok) {
+        throw new Error(`HTTP error! status: ${submitResponse.status}`);
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      const { task_id: serverTaskId } = await submitResponse.json();
 
-      if (!reader) {
-        throw new Error('无法读取响应流');
-      }
+      // 第二步：轮询拉取任务日志
+      let lastLogLength = 0;
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`${API_BASE_URL}/task/${serverTaskId}/status`, {
+            signal: AbortSignal.timeout(10000)
+          });
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        const chunk = decoder.decode(value);
-        
-        if (chunk.includes('__TASK_DONE__:')) {
-          const [contentPart, taskPart] = chunk.split('__TASK_DONE__:');
-          
-          if (contentPart) {
+          if (!statusRes.ok) {
+            throw new Error(`状态查询失败: ${statusRes.status}`);
+          }
+
+          const statusData = await statusRes.json();
+          const fullLog = statusData.log;
+          const newContent = fullLog.slice(lastLogLength);
+          lastLogLength = fullLog.length;
+
+          // 有新内容就追加到界面
+          if (newContent) {
+            // 检查是否包含任务完成标记
+            if (newContent.includes('__TASK_DONE__:')) {
+              const [contentPart, taskPart] = newContent.split('__TASK_DONE__:');
+              
+              if (contentPart) {
+                updateSessionMessages(sessionId, msgs => msgs.map(msg => 
+                  msg.id === assistantMessageId 
+                    ? { ...msg, content: msg.content + contentPart }
+                    : msg
+                ));
+              }
+              
+              const realTaskId = taskPart.trim();
+              updateSessionMessages(sessionId, msgs => msgs.map(msg => 
+                msg.id === assistantMessageId 
+                  ? { ...msg, taskId: realTaskId }
+                  : msg
+              ));
+              updateSessionTaskId(sessionId, realTaskId);
+
+              clearInterval(pollInterval);
+              setIsLoading(false);
+              return;
+            }
+
             updateSessionMessages(sessionId, msgs => msgs.map(msg => 
               msg.id === assistantMessageId 
-                ? { ...msg, content: msg.content + contentPart }
+                ? { ...msg, content: msg.content + newContent }
                 : msg
             ));
           }
-          
-          const taskId = taskPart.trim();
-          updateSessionMessages(sessionId, msgs => msgs.map(msg => 
-            msg.id === assistantMessageId 
-              ? { ...msg, taskId }
-              : msg
-          ));
-          // 将会话ID同步为真实任务ID
-          updateSessionTaskId(sessionId, taskId);
-        } else {
-          updateSessionMessages(sessionId, msgs => msgs.map(msg => 
-            msg.id === assistantMessageId 
-              ? { ...msg, content: msg.content + chunk }
-              : msg
-          ));
+
+          // 任务完成，停止轮询
+          if (statusData.done) {
+            clearInterval(pollInterval);
+            setIsLoading(false);
+          }
+
+        } catch (err) {
+          console.error('轮询出错:', err);
+          // 单次轮询失败不终止，继续下一次
         }
-      }
+      }, 2000); // 每2秒拉一次
+
     } catch (error) {
       console.error('API调用失败:', error);
       message.error('调用分析服务失败，请检查后端服务是否正常运行');
@@ -348,10 +373,8 @@ const App: React.FC = () => {
           ? { ...msg, content: '**错误：** 无法连接到后端服务，请检查网络连接或后端服务状态。' }
           : msg
       ));
-    } finally {
       setIsLoading(false);
     }
-  };
 
   const handleGenerateReport = async (taskId: string) => {
     if (!currentSessionId) return;
