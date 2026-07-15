@@ -78,7 +78,7 @@ const App: React.FC = () => {
     return localStorage.getItem('theme') !== 'light';
   });
 
-  // ========== 历史会话状态 ==========
+  // ========== 历史会话状态 ==========11
   const [siderCollapsed, setSiderCollapsed] = useState<boolean>(false);
   const [sessions, setSessions] = useState<HistorySession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
