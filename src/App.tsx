@@ -87,7 +87,7 @@ const App: React.FC = () => {
   const workorderFileRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 初始化：从本地存储加载历史会话1
+  // 初始化：从本地存储加载历史会话5
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
