@@ -87,7 +87,7 @@ const App: React.FC = () => {
   const workorderFileRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 初始化：从本地存储加载历史会话5
+  // 初始化：从本地存储加载历史会话
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -249,7 +249,7 @@ const App: React.FC = () => {
   const sendToLLM = async (displayContent: string) => {
     setIsLoading(true);
     
-    // 创建新会话12
+    // 创建新会话
     const sessionId = createNewSession(
       alarmFile?.name,
       workorderFile?.name
@@ -288,7 +288,7 @@ const App: React.FC = () => {
         formData.append('workorder_file', currentWorkorder.rawFile, currentWorkorder.name);
       }
 
-      // 第一步：提交任务，立刻拿到task_id
+      // 第一步：提交任务，立即获取任务ID（短请求，不会超时）
       const submitResponse = await fetch(`${API_BASE_URL}/llm/analyze`, {
         method: 'POST',
         body: formData,
@@ -301,7 +301,7 @@ const App: React.FC = () => {
 
       const { task_id: serverTaskId } = await submitResponse.json();
 
-      // 第二步：轮询拉取任务日志
+      // 第二步：轮询拉取任务日志，模拟流式效果
       let lastLogLength = 0;
       const pollInterval = setInterval(async () => {
         try {
@@ -318,9 +318,9 @@ const App: React.FC = () => {
           const newContent = fullLog.slice(lastLogLength);
           lastLogLength = fullLog.length;
 
-          // 有新内容就追加到界面
+          // 有新日志则追加到界面
           if (newContent) {
-            // 检查是否包含任务完成标记
+            // 识别任务完成标记
             if (newContent.includes('__TASK_DONE__:')) {
               const [contentPart, taskPart] = newContent.split('__TASK_DONE__:');
               
@@ -352,7 +352,7 @@ const App: React.FC = () => {
             ));
           }
 
-          // 任务完成，停止轮询
+          // 任务标记为完成时，停止轮询
           if (statusData.done) {
             clearInterval(pollInterval);
             setIsLoading(false);
@@ -360,9 +360,9 @@ const App: React.FC = () => {
 
         } catch (err) {
           console.error('轮询出错:', err);
-          // 单次轮询失败不终止，继续下一次
+          // 单次轮询失败不中断，继续下一次拉取
         }
-      }, 2000); // 每2秒拉一次
+      }, 2000); // 每2秒拉取一次进度
 
     } catch (error) {
       console.error('API调用失败:', error);
@@ -375,6 +375,7 @@ const App: React.FC = () => {
       ));
       setIsLoading(false);
     }
+  };
 
   const handleGenerateReport = async (taskId: string) => {
     if (!currentSessionId) return;
@@ -399,7 +400,6 @@ const App: React.FC = () => {
 
       const response = await fetch(`${API_BASE_URL}/llm/generate-report`, {
         method: 'POST',
-        mode: "cors",
         body: formData,
         signal: AbortSignal.timeout(180000)
       });
